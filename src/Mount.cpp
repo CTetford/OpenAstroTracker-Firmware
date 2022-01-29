@@ -3117,6 +3117,22 @@ void Mount::setTargetToHome()
 
 /////////////////////////////////
 //
+// getCurrentHomeRA
+//
+// Get the current RA value of the home position
+/////////////////////////////////
+float Mount::getCurrentHomeRA() const
+{
+    float trackedSeconds = _stepperTRK->currentPosition() / _trackingSpeed;  // steps / steps/s = seconds
+
+    DayTime raHome = _zeroPosRA;
+    raHome.addSeconds(trackedSeconds);
+
+    return raHome.getTotalHours();
+}
+
+/////////////////////////////////
+//
 // getSpeed
 //
 // Get the current speed of the stepper. NORTH, WEST, TRACKING
@@ -3206,9 +3222,10 @@ void Mount::calculateRAandDECSteppers(long &targetRASteps, long &targetDECSteps,
   * sections around the home position of RA. The tracking time will still be limited to around 2h in
   * worst case if the target is located right before the 5h mark during slewing. 
   */
+    float homeRA = getCurrentHomeRA();
 #if NORTHERN_HEMISPHERE == 1
-    float const RALimitL = (RA_LIMIT_LEFT * stepsPerSiderealHour);
-    float const RALimitR = (RA_LIMIT_RIGHT * stepsPerSiderealHour);
+    float const RALimitL = homeRA + (RA_LIMIT_LEFT * stepsPerSiderealHour);
+    float const RALimitR = homeRA + (RA_LIMIT_RIGHT * stepsPerSiderealHour);
 #else
     float const RALimitL = (RA_LIMIT_RIGHT * stepsPerSiderealHour);
     float const RALimitR = (RA_LIMIT_LEFT * stepsPerSiderealHour);

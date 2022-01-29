@@ -293,6 +293,9 @@ class Mount
     // Set RA and DEC to the home position
     void setTargetToHome();
 
+    // Get the current RA value of the home position
+    float getCurrentHomeRA() const;
+
     // Asynchronously slews the mount to the home position
     void goHome();
 
