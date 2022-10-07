@@ -7,12 +7,12 @@ class LcdMenu;
 class MeadeCommandProcessor
 {
   public:
-    static MeadeCommandProcessor *createProcessor(Mount *mount, LcdMenu *lcdMenu);
+    static MeadeCommandProcessor *createProcessor(Mount *mount);
     static MeadeCommandProcessor *instance();
     String processCommand(String incmd);
 
   private:
-    MeadeCommandProcessor(Mount *mount, LcdMenu *lcdMenu);
+    MeadeCommandProcessor(Mount *mount);
     String handleMeadeSetInfo(String inCmd);
     String handleMeadeMovement(String inCmd);
     String handleMeadeGetInfo(String inCmd);

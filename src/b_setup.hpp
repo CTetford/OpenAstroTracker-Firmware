@@ -15,30 +15,18 @@ POP_NO_WARNINGS
 #include "InterruptCallback.hpp"
 
 #include "Utility.hpp"
-#include "EPROMStore.hpp"
 #include "a_inits.hpp"
-#include "LcdMenu.hpp"
-#include "LcdButtons.hpp"
 
-LcdMenu lcdMenu(16, 2, MAXMENUITEMS);
-#if DISPLAY_TYPE == DISPLAY_TYPE_LCD_KEYPAD
-LcdButtons lcdButtons(LCD_KEY_SENSE_PIN, &lcdMenu);
-#endif
-
-#if DISPLAY_TYPE == DISPLAY_TYPE_LCD_KEYPAD_I2C_MCP23017 || DISPLAY_TYPE == DISPLAY_TYPE_LCD_KEYPAD_I2C_MCP23008                           \
-    || DISPLAY_TYPE == DISPLAY_TYPE_LCD_JOY_I2C_SSD1306
-LcdButtons lcdButtons(&lcdMenu);
-#endif
 
 #ifdef ESP32
-DRAM_ATTR Mount mount(&lcdMenu);
+DRAM_ATTR Mount mount(&);
 #else
-Mount mount(&lcdMenu);
+Mount mount;
 #endif
 
 #if (WIFI_ENABLED == 1)
     #include "WifiControl.hpp"
-WifiControl wifiControl(&mount, &lcdMenu);
+WifiControl wifiControl(&mount);
 #endif
 
 /////////////////////////////////
@@ -107,61 +95,9 @@ void setup()
 
     LOG(DEBUG_ANY, "[SYSTEM]: Hello, universe, this is OAT %s!", VERSION);
 
-#if USE_GPS == 1
-    GPS_SERIAL_PORT.begin(GPS_BAUD_RATE);
-#endif
-
-//Turn on dew heater
-#if DEW_HEATER == 1
-    digitalWrite(DEW_HEATER_1_PIN, HIGH);
-    digitalWrite(DEW_HEATER_2_PIN, HIGH);
-#endif
-
     /////////////////////////////////
     //   Microstepping/driver pins
     /////////////////////////////////
-    pinMode(RA_EN_PIN, OUTPUT);
-    digitalWrite(RA_EN_PIN, LOW);  // ENABLE, LOW to enable
-#if RA_DRIVER_TYPE == DRIVER_TYPE_TMC2209_STANDALONE || RA_DRIVER_TYPE == DRIVER_TYPE_A4988_GENERIC
-    #if defined(RA_MS0_PIN)
-    digitalWrite(RA_MS0_PIN, HIGH);  // MS0
-    #endif
-    #if defined(RA_MS1_PIN)
-    digitalWrite(RA_MS1_PIN, HIGH);  // MS1
-    #endif
-    #if defined(RA_MS2_PIN)
-    digitalWrite(RA_MS2_PIN, HIGH);  // MS2
-    #endif
-#endif
-#if RA_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    // include TMC2209 UART pins
-    pinMode(RA_DIAG_PIN, INPUT);
-    #ifdef RA_SERIAL_PORT
-    RA_SERIAL_PORT.begin(57600);  // Start HardwareSerial comms with driver
-    #endif
-#endif
-    pinMode(DEC_EN_PIN, OUTPUT);
-    digitalWrite(DEC_EN_PIN, LOW);  // ENABLE, LOW to enable
-#if DEC_DRIVER_TYPE == DRIVER_TYPE_TMC2209_STANDALONE || DEC_DRIVER_TYPE == DRIVER_TYPE_A4988_GENERIC
-    #if defined(DEC_MS0_PIN)
-    digitalWrite(DEC_MS0_PIN, HIGH);  // MS1
-    #endif
-    #if defined(DEC_MS1_PIN)
-    digitalWrite(DEC_MS1_PIN, HIGH);  // MS2
-    #endif
-    #if defined(DEC_MS2_PIN)
-    digitalWrite(DEC_MS2_PIN, HIGH);  // MS3
-    #endif
-#endif
-#if DEC_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    // include TMC2209 UART pins
-    pinMode(DEC_DIAG_PIN, INPUT);
-    #ifdef DEC_SERIAL_PORT
-    DEC_SERIAL_PORT.begin(57600);  // Start HardwareSerial comms with driver
-    #endif
-#endif
-
-#if (AZ_STEPPER_TYPE != STEPPER_TYPE_NONE)
     pinMode(AZ_EN_PIN, OUTPUT);
     digitalWrite(AZ_EN_PIN, HIGH);  // Logic HIGH to disable the driver initally
     #if AZ_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
@@ -171,9 +107,7 @@ void setup()
     AZ_SERIAL_PORT.begin(57600);  // Start HardwareSerial comms with driver
         #endif
     #endif
-#endif
 
-#if (ALT_STEPPER_TYPE != STEPPER_TYPE_NONE)
     pinMode(ALT_EN_PIN, OUTPUT);
     digitalWrite(ALT_EN_PIN, HIGH);  // Logic HIGH to disable the driver initally
     #if ALT_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
@@ -183,96 +117,13 @@ void setup()
     ALT_SERIAL_PORT.begin(57600);  // Start HardwareSerial comms with driver
         #endif
     #endif
-#endif
-
-#if (FOCUS_STEPPER_TYPE != STEPPER_TYPE_NONE)
-    LOG(DEBUG_FOCUS, "[FOCUS]: setup(): focus disabling enable pin");
-    pinMode(FOCUS_EN_PIN, OUTPUT);
-    digitalWrite(FOCUS_EN_PIN, HIGH);  // Logic HIGH to disable the driver initally
-    #if FOCUS_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-        // include TMC2209 UART pins
-        #ifdef FOCUS_SERIAL_PORT
-    LOG(DEBUG_FOCUS, "[FOCUS]: setup(): focus TMC2209U starting comms");
-    FOCUS_SERIAL_PORT.begin(57600);  // Start HardwareSerial comms with driver
-        #endif
-    #endif
-#endif
     // end microstepping -------------------
-
-#if USE_HALL_SENSOR_RA_AUTOHOME == 1
-    pinMode(RA_HOMING_SENSOR_PIN, INPUT);
-#endif
-
-    LOG(DEBUG_ANY, "[SYSTEM]: Get EEPROM store ready...");
-    EEPROMStore::initialize();
-
-// Calling the LCD startup here, I2C can't be found if called earlier
-#if DISPLAY_TYPE != DISPLAY_TYPE_NONE
-    LOG(DEBUG_ANY, "[SYSTEM]: Get LCD ready...");
-    lcdMenu.startup();
-
-    // Show a splash screen
-    lcdMenu.setCursor(0, 0);
-    #ifdef OAM
-    lcdMenu.printMenu(" OpenAstroMount");
-    #else
-    lcdMenu.printMenu("OpenAstroTracker");
-    #endif
-    lcdMenu.setCursor(5, 1);
-    lcdMenu.printMenu(VERSION);
-    delay(1000);  // Pause on splash screen
-
-    // Check for EEPROM reset (Button down during boot)
-    if (lcdButtons.currentState() == btnDOWN)
-    {
-        LOG(DEBUG_INFO, "[SYSTEM]: Erasing configuration in EEPROM!");
-        mount.clearConfiguration();
-        // Wait for button release
-        lcdMenu.setCursor(13, 1);
-        lcdMenu.printMenu("CLR");
-        LOG(DEBUG_INFO, "[SYSTEM]: Waiting for button release!");
-        while (lcdButtons.currentState() != btnNONE)
-        {
-            delay(10);
-        }
-        LOG(DEBUG_INFO, "[SYSTEM]: Button released, continuing");
-    }
-
-    // Create the LCD top-level menu items
-    lcdMenu.addItem("RA", RA_Menu);
-    lcdMenu.addItem("DEC", DEC_Menu);
-
-    #if SUPPORT_POINTS_OF_INTEREST == 1
-    lcdMenu.addItem("GO", POI_Menu);
-    #else
-    lcdMenu.addItem("GO", Home_Menu);
-    #endif
-
-    lcdMenu.addItem("HA", HA_Menu);
-
-    #if SUPPORT_MANUAL_CONTROL == 1
-    lcdMenu.addItem("CTRL", Control_Menu);
-    #endif
-
-    #if SUPPORT_CALIBRATION == 1
-    lcdMenu.addItem("CAL", Calibration_Menu);
-    #endif
-
-    #if FOCUS_STEPPER_TYPE != STEPPER_TYPE_NONE
-    lcdMenu.addItem("FOC", Focuser_Menu);
-    #endif
-
-    #if SUPPORT_INFO_DISPLAY == 1
-    lcdMenu.addItem("INFO", Status_Menu);
-    #endif
-
-#endif  // DISPLAY_TYPE > 0
 
     LOG(DEBUG_ANY, "[SYSTEM]: Hardware: %s", mount.getMountHardwareInfo().c_str());
 
     // Create the command processor singleton
     LOG(DEBUG_ANY, "[SYSTEM]: Initialize LX200 handler...");
-    MeadeCommandProcessor::createProcessor(&mount, &lcdMenu);
+    MeadeCommandProcessor::createProcessor(&mount);
 
 #if (WIFI_ENABLED == 1)
     LOG(DEBUG_ANY, "[SYSTEM]: Setup Wifi...");
@@ -286,38 +137,7 @@ void setup()
     LOG(DEBUG_ANY, "[SYSTEM]: Configure steppers...");
 
 // Set the stepper motor parameters
-#if (RA_STEPPER_TYPE != STEPPER_TYPE_NONE)
-    LOG(DEBUG_ANY, "[STEPPERS]: Configure RA stepper NEMA...");
-    mount.configureRAStepper(RAmotorPin1, RAmotorPin2, RA_STEPPER_SPEED, RA_STEPPER_ACCELERATION);
-#else
-    #error New stepper type? Configure it here.
-#endif
 
-#if (DEC_STEPPER_TYPE != STEPPER_TYPE_NONE)
-    LOG(DEBUG_ANY, "[STEPPERS]: Configure DEC stepper NEMA...");
-    mount.configureDECStepper(DECmotorPin1, DECmotorPin2, DEC_STEPPER_SPEED, DEC_STEPPER_ACCELERATION);
-#else
-    #error New stepper type? Configure it here.
-#endif
-
-#if RA_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    LOG(DEBUG_ANY, "[STEPPERS]: Configure RA driver TMC2209 UART...");
-    #if SW_SERIAL_UART == 0
-    mount.configureRAdriver(&RA_SERIAL_PORT, R_SENSE, RA_DRIVER_ADDRESS, RA_RMSCURRENT, RA_STALL_VALUE);
-    #elif SW_SERIAL_UART == 1
-    mount.configureRAdriver(RA_SERIAL_PORT_RX, RA_SERIAL_PORT_TX, R_SENSE, RA_DRIVER_ADDRESS, RA_RMSCURRENT, RA_STALL_VALUE);
-    #endif
-#endif
-#if DEC_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    LOG(DEBUG_ANY, "[STEPPERS]: Configure DEC driver TMC2209 UART...");
-    #if SW_SERIAL_UART == 0
-    mount.configureDECdriver(&DEC_SERIAL_PORT, R_SENSE, DEC_DRIVER_ADDRESS, DEC_RMSCURRENT, DEC_STALL_VALUE);
-    #elif SW_SERIAL_UART == 1
-    mount.configureDECdriver(DEC_SERIAL_PORT_RX, DEC_SERIAL_PORT_TX, R_SENSE, DEC_DRIVER_ADDRESS, DEC_RMSCURRENT, DEC_STALL_VALUE);
-    #endif
-#endif
-
-#if (AZ_STEPPER_TYPE != STEPPER_TYPE_NONE)
     LOG(DEBUG_ANY, "[STEPPERS]: Configure AZ stepper...");
     mount.configureAZStepper(AZmotorPin1, AZmotorPin2, AZ_STEPPER_SPEED, AZ_STEPPER_ACCELERATION);
     #if AZ_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
@@ -328,8 +148,7 @@ void setup()
     mount.configureAZdriver(AZ_SERIAL_PORT_RX, AZ_SERIAL_PORT_TX, R_SENSE, AZ_DRIVER_ADDRESS, AZ_RMSCURRENT, AZ_STALL_VALUE);
         #endif
     #endif
-#endif
-#if (ALT_STEPPER_TYPE != STEPPER_TYPE_NONE)
+
     LOG(DEBUG_ANY, "[STEPPERS]: Configure Alt stepper...");
     mount.configureALTStepper(ALTmotorPin1, ALTmotorPin2, ALT_STEPPER_SPEED, ALT_STEPPER_ACCELERATION);
     #if ALT_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
@@ -340,39 +159,6 @@ void setup()
     mount.configureALTdriver(ALT_SERIAL_PORT_RX, ALT_SERIAL_PORT_TX, R_SENSE, ALT_DRIVER_ADDRESS, ALT_RMSCURRENT, ALT_STALL_VALUE);
         #endif
     #endif
-#endif
-
-#if (FOCUS_STEPPER_TYPE != STEPPER_TYPE_NONE)
-    LOG(DEBUG_ANY, "[STEPPERS]: setup(): Configure Focus stepper...");
-    mount.configureFocusStepper(FOCUSmotorPin1, FOCUSmotorPin2, FOCUS_STEPPER_SPEED, FOCUS_STEPPER_ACCELERATION);
-    #if FOCUS_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    LOG(DEBUG_ANY, "[STEPPERS]: setup(): Configure Focus driver...");
-    LOG(DEBUG_FOCUS, "[FOCUS]: setup(): RSense %f, RMS Current %fmA", R_SENSE, FOCUS_RMSCURRENT);
-        #if SW_SERIAL_UART == 0
-    mount.configureFocusDriver(&FOCUS_SERIAL_PORT, R_SENSE, FOCUS_DRIVER_ADDRESS, FOCUS_RMSCURRENT, FOCUS_STALL_VALUE);
-        #elif SW_SERIAL_UART == 1
-    mount.configureFocusDriver(
-        FOCUS_SERIAL_PORT_RX, FOCUS_SERIAL_PORT_TX, R_SENSE, FOCUS_DRIVER_ADDRESS, FOCUS_RMSCURRENT, FOCUS_STALL_VALUE);
-        #endif
-    #endif
-#endif
-
-    LOG(DEBUG_ANY, "[SYSTEM]: Read Configuration...");
-
-    // The mount uses EEPROM storage locations 0-10 that it reads during construction
-    // The LCD uses EEPROM storage location 11
-    mount.readConfiguration();
-
-    // Read other persisted values and set in mount
-    DayTime haTime = EEPROMStore::getHATime();
-
-    LOG(DEBUG_INFO, "[SYSTEM]: SpeedCal: %s", String(mount.getSpeedCalibration(), 5).c_str());
-    LOG(DEBUG_INFO, "[SYSTEM]: TRKSpeed: %s", String(mount.getSpeed(TRACKING), 5).c_str());
-
-    mount.setHA(haTime);
-
-    // For LCD screen, it's better to initialize the target to where we are (RA)
-    mount.targetRA() = mount.currentRA();
 
 // Setup service to periodically service the steppers.
 #if defined(ESP32)
@@ -392,26 +178,6 @@ void setup()
     {
         LOG(DEBUG_MOUNT, "[SYSTEM]: CANNOT setup interrupt timer!");
     }
-#endif
-
-#if UART_CONNECTION_TEST_TX == 1
-    #if RA_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    LOG(DEBUG_STEPPERS, "[STEPPERS]: Moving RA axis using UART commands...");
-    mount.testRA_UART_TX();
-    LOG(DEBUG_STEPPERS, "[STEPPERS]: Finished moving RA axis using UART commands.");
-    #endif
-
-    #if DEC_DRIVER_TYPE == DRIVER_TYPE_TMC2209_UART
-    LOG(DEBUG_STEPPERS, "[STEPPERS]: Moving DEC axis using UART commands...");
-    mount.testDEC_UART_TX();
-    LOG(DEBUG_STEPPERS, "[STEPPERS]: Finished moving DEC axis using UART commands.");
-    #endif
-#endif
-
-#if TRACK_ON_BOOT == 1
-    // Start the tracker.
-    LOG(DEBUG_ANY, "[SYSTEM]: Start Tracking...");
-    mount.startSlewing(TRACKING);
 #endif
 
     mount.bootComplete();

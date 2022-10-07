@@ -12,7 +12,6 @@ void processSerialData();
 void serialLoop()
 {
     mount.loop();
-    mount.displayStepperPositionThrottled();
 
     #ifdef ESP32
     processSerialData();
